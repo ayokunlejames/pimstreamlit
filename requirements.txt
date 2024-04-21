@@ -1,6 +1,6 @@
-mysqlclient
+mysqlclient==2.2.4
 
-SQLAlchemy
+SQLAlchemy==2.0.29
 mysql-connector-python
 streamlit
 pandas
