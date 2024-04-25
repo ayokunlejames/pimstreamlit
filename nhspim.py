@@ -3,19 +3,40 @@ import streamlit as st
 import mysql.connector
 import pandas as pd
 import requests
+import os
+import toml
 
+def load_database_config():
+    """Load database configuration from secrets.toml."""
+    try:
+        with open(".streamlit/secrets.toml", "r") as file:
+            config = toml.load(file)
+            db_config = config["connections"]["mysql"]
+        return db_config
+    except FileNotFoundError:
+        st.error("Database configuration file (secrets.toml) not found!")
+        st.stop()
+    except KeyError:
+        st.error("Invalid database configuration in secrets.toml!")
+        st.stop()
 
+def create_connection():
+    """Create connection to MySQL database."""
+    db_config = load_database_config()
+    try:
+        db = mysql.connector.connect(**db_config)
+        return db
+    except mysql.connector.Error as err:
+        if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
+            st.error("Error: Access denied! Check database username and password.")
+            st.stop()
+        elif err.errno == errorcode.ER_BAD_DB_ERROR:
+            st.error(f"Error: Database '{db_config['database']}' does not exist!")
+            st.stop()
+        else:
+            st.error("Error: Failed to connect to MySQL database!")
+            st.stop()
 
-#def create_connection():
-#    """Create connection to MySQL database."""
-#    db = mysql.connector.connect(**config)
-#    return db
-    
-db = st.connection('mysql', type = 'sql')
-
-
-
-# In[57]:
 
 
 from PIL import Image
