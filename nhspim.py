@@ -6,16 +6,19 @@ import requests
 import os
 import toml
 
-def load_database_config():
-    """Load database configuration from secrets.toml file."""
-    with open('.streamlit/secrets.toml', 'r') as file:
-        config = toml.load(file)
-    return config
+# Access MySQL credentials from secrets
+mysql_config = st.secrets["connections_mysql"]
 
 def create_connection():
     """Create connection to MySQL database."""
-    config = load_database_config()
-    db = mysql.connector.connect(**config)
+    db = mysql.connector.connect(
+        user=mysql_config["username"],
+        password=mysql_config["password"],
+        host=mysql_config["host"],
+        port=mysql_config["port"],
+        database=mysql_config["database"],
+        auth_plugin=mysql_config["auth_plugin"]
+    )
     return db
 
 from PIL import Image
