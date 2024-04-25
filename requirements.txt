@@ -1,4 +1,4 @@
-mysqlclient==2.2.4
+mysqlclient==2.1.0
 
 SQLAlchemy==2.0.29
 mysql-connector-python
