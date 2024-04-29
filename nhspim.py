@@ -48,7 +48,7 @@ def fetch_all_gmdns(db):
 # In[59]:
 
 
-def fetch_all_eclass(db):
+def fetch_all_eclass(db, search_value=None):
     """Fetch all records from the 'NHS_product_classification' table."""
     cursor = db.cursor()
     
@@ -56,11 +56,29 @@ def fetch_all_eclass(db):
     cursor.execute("USE NHS_PIM")
     
     #Fetch all eclass codes
-    select_eclass_query = "SELECT eclass_code, description FROM nhs_product_classification"
-    cursor.execute(select_eclass_query)
+    select_eclass_query = """
+       SELECT 
+         eclass_code,
+         description 
+       FROM nhs_product_classification
+    """
+    
+    if search_value:
+        search_value = "%" + search_value + "%"
+        select_eclass_query += "WHERE description LIKE %s"
+        
+    if search_value:
+         cursor.execute(select_eclass_query, (search_value,)) 
+    else:
+         cursor.execute(select_eclass_query)
+         
     eclass = cursor.fetchall()
     
-    return eclass
+    # Fetch column names
+    column_names = [col[0] for col in cursor.description]
+
+    cursor.close()
+    return eclass, column_names
 
 
 # In[60]:
@@ -199,7 +217,7 @@ def fetch_all_suppliers(db, search_value=None):
 
 # In[64]:
 
-def fetch_all_products(db):
+def fetch_all_products(db, search_value=None):
     """Fetch all records from the 'medical_device' table."""
     cursor = db.cursor()
     
@@ -215,13 +233,23 @@ def fetch_all_products(db):
        FROM medical_device
 
     """
-    cursor.execute(select_product_query)
+    
+    if search_value:
+        search_value = "%" + search_value + "%"
+        select_product_query += "WHERE brand_name LIKE %s"
+
+    if search_value:
+         cursor.execute(select_product_query, (search_value,)) 
+    else:
+        cursor.execute(select_product_query)
+
     medical_device_product = cursor.fetchall()
     
     # Fetch column names
     column_names = [col[0] for col in cursor.description]
 
     cursor.close()
+    
     return medical_device_product, column_names
 
 
@@ -587,13 +615,20 @@ def main():
         
         
     elif options == "Medical Devices":
-        medical_device_product = fetch_all_products(db)
+        #get search value from user
+        search_value = st.text_input("Filter by brand name")
+        
+        #fetch optional filtering
+        medical_device_product = fetch_all_products(db, search_value=search_value)
         if medical_device_product:
             st.subheader("All Medical Device Products:")
             medical_device_data, column_names = medical_device_product
             
             # Create DataFrame with fetched data and column names
             df = pd.DataFrame(medical_device_data, columns = column_names)
+            
+            if search_value:
+                df = df[df['brand_name'].str.contains(search_value, case=False, na=False)]
             st.dataframe(df)
             
             add_download_button(df, "Medical Device Products")
@@ -671,10 +706,21 @@ def main():
             st.write("No GMDN found")
             
     elif options == "NHS eClass":
-        eclass = fetch_all_eclass(db)
+        #get search value from user
+        search_value = st.text_input("Filter by eclass description")
+        
+        #fetch optional filtering
+        eclass = fetch_all_eclass(db, search_value=search_value)
         if eclass:
             st.subheader("All NHS eClass codes: ")
-            df = pd.DataFrame(eclass, columns=['eclass_code', 'description'])
+            
+            eclass_data, column_names = eclass
+            
+            df = pd.DataFrame(eclass_data, columns=column_names)
+            
+            if search_value:
+                df = df[df['description'].str.contains(search_value, case=False, na=False)]
+
             st.dataframe(df)
             add_download_button(df, "NHS eClass codes")
         else:
@@ -697,3 +743,4 @@ def main():
 if __name__ == "__main__":
     main()
         
+
