@@ -84,7 +84,7 @@ def fetch_all_riskclass(db):
 # In[61]:
 
 
-def fetch_all_providers(db):
+def fetch_all_providers(db, search_value=None):
     """Fetch all records from the 'nhs_provider' table."""
     cursor = db.cursor()
     
@@ -100,16 +100,27 @@ def fetch_all_providers(db):
          provider_registration_no 
        FROM nhs_provider
     """
-    cursor.execute(select_provider_query)
+    if search_value:
+        search_value = "%" + search_value + "%"
+        select_provider_query += "WHERE provider_name LIKE %s"
+        
+    if search_value:
+         cursor.execute(select_provider_query, (search_value,)) 
+    else:
+        cursor.execute(select_provider_query)
     provider = cursor.fetchall()
     
-    return provider
+    # Fetch column names
+    column_names = [col[0] for col in cursor.description]
+
+    cursor.close()
+    return provider, column_names
 
 
 # In[62]:
 
 
-def fetch_all_manufacturers(db):
+def fetch_all_manufacturers(db, search_value=None):
     """Fetch all records from the 'manufacturer' table."""
     cursor = db.cursor()
     
@@ -128,16 +139,29 @@ def fetch_all_manufacturers(db):
        FROM manufacturer
     """
     
-    cursor.execute(select_manufacturer_query)
+    if search_value:
+        search_value = "%" + search_value + "%"
+        select_manufacturer_query += "WHERE manufacturer_name LIKE %s"
+        
+    if search_value:
+         cursor.execute(select_manufacturer_query, (search_value,)) 
+    else:
+        cursor.execute(select_manufacturer_query)
+        
     manufacturer = cursor.fetchall()
     
-    return manufacturer
+    # Fetch column names
+    column_names = [col[0] for col in cursor.description]
+
+    cursor.close()
+    
+    return manufacturer, column_names
 
 
 # In[63]:
 
 
-def fetch_all_suppliers(db):
+def fetch_all_suppliers(db, search_value=None):
     """Fetch all records from the 'supplier' table."""
     cursor = db.cursor()
     
@@ -155,17 +179,54 @@ def fetch_all_suppliers(db):
           customer_service_email 
        FROM supplier
     """
-    cursor.execute(select_supplier_query)
+    if search_value:
+        search_value = "%" + search_value + "%"
+        select_supplier_query += "WHERE supplier_name LIKE %s"
+        
+    if search_value:
+         cursor.execute(select_supplier_query, (search_value,)) 
+    else:
+        cursor.execute(select_supplier_query)
+        
     supplier = cursor.fetchall()
+    # Fetch column names
+    column_names = [col[0] for col in cursor.description]
+
+    cursor.close()
     
-    return supplier
+    return supplier, column_names
 
 
 # In[64]:
 
+def fetch_all_products(db):
+    """Fetch all records from the 'medical_device' table."""
+    cursor = db.cursor()
+    
+    #Select database
+    cursor.execute("USE NHS_PIM")
+    
+    #fetch all medical device products
+    select_product_query = """
+       SELECT
+         gtin, brand_name, unit_of_use, quantity_of_uou,
+         item_length, item_height, item_width, item_weight AS 'item_weight (g)', item_volume AS 'item_volume (cubic cm)', unit_of_dimension, product_description, storage_handling, single_use, restricted_no_of_use, sterile, sterilize_before_use, sterilization_method, item_contains_latex, item_contains_dehp, item_mri_compatible, gmn, gmdn_code, manufacturer_reference_no, nhs_eclass_code
+      
+       FROM medical_device
+
+    """
+    cursor.execute(select_product_query)
+    medical_device_product = cursor.fetchall()
+    
+    # Fetch column names
+    column_names = [col[0] for col in cursor.description]
+
+    cursor.close()
+    return medical_device_product, column_names
+
 
 def fetch_trade_item_by_gtin(db, gtin):
-    """Fetch a trade item record from the trade item table based on the UDI-DI of the item"""
+    """Fetch a trade item record from the trade item table based on the UDI-DI of the item trade item device"""
     cursor = db.cursor()
     
     #select database
@@ -174,20 +235,21 @@ def fetch_trade_item_by_gtin(db, gtin):
     #Fetch trade items by gtin
     select_trade_item_by_gtin_query= """
       SELECT 
-      gtin, brand_name, serial_number, batch_number, manufacturing_date, 
-      expiry_date, udi_pi, unit_of_issue, unit_of_use, quantity_of_uou, unit_of_use_udi,
-      item_length_cm, item_height_cm, item_width_cm, item_weight_gram, item_volume_ccm, 
-      unit_of_dimension, product_description, storage_handling, single_use, restricted_no_of_use,
-      sterile, sterilize_before_use, sterilization_method, item_contains_latex, item_contains_dehp, 
-      item_mri_compatible, item_model_gmn, gmdn_gmdn_code, 
-      manufacturer_catalog_mpc,supplier_supplier_gln, nhs_provider_provider_gln, nhs_eclass_code
+       UDI, trade_item.gtin, brand_name, serial_number, batch_number, manufacturing_date, expiry_date, udi_pi, unit_of_use, quantity_of_uou, unit_of_use_udi, product_description, item_length, item_height, item_width, unit_of_dimension, item_weight AS 'item_weight (g)', item_volume AS 'item_volume (cubic cm)', storage_handling, single_use, restricted_no_of_use, sterile, sterilize_before_use, sterilization_method, item_contains_latex, item_contains_dehp, item_mri_compatible, gmn, gmdn_code, manufacturer.manufacturer_name, supplier.supplier_name, nhs_provider.provider_name, nhs_eclass_code, manufacturer_catalog.manufacturer_reference_no, authorized_rep.rep_name AS 'Authorized Rep Name', authorized_rep.contact_number, authorized_rep.email
       
-      FROM trade_item
-      WHERE gtin = %s
+     FROM trade_item
+      LEFT JOIN medical_device ON medical_device.gtin = trade_item.gtin
+      LEFT JOIN supplier ON supplier.supplier_gln = trade_item.supplier_gln
+      LEFT JOIN nhs_provider ON nhs_provider.provider_gln = trade_item.nhs_provider_gln
+      LEFT JOIN manufacturer_catalog ON manufacturer_catalog.manufacturer_reference_no = medical_device.manufacturer_reference_no
+      LEFT JOIN manufacturer ON manufacturer_catalog.manufacturer_manufacturer_gln = manufacturer.manufacturer_gln
+      LEFT JOIN authorized_rep ON manufacturer_catalog.authorized_rep_rep_id = authorized_rep.rep_id
+     
+     WHERE trade_item.gtin = %s
     """
     
     cursor.execute(select_trade_item_by_gtin_query, (gtin,))
-    trade_item = cursor.fetchone()
+    trade_item = cursor.fetchall()
    # Fetch column names
     column_names = [col[0] for col in cursor.description]
     
@@ -200,7 +262,7 @@ def fetch_trade_item_by_gtin(db, gtin):
 # In[65]:
 
 
-def fetch_trade_item_by_supplier(db, supplier_supplier_gln):
+def fetch_trade_item_by_supplier(db, supplier_gln):
     """Fetch trade item records from the trade item table based on the gln of the item supplier"""
     cursor = db.cursor()
     
@@ -210,20 +272,26 @@ def fetch_trade_item_by_supplier(db, supplier_supplier_gln):
     #Fetch trade items by supplier gln
     select_trade_item_by_supplier_query = """
       SELECT 
-      supplier_supplier_gln, supplier.supplier_name, gtin, brand_name, serial_number, batch_number, manufacturing_date, 
+      supplier.supplier_gln, supplier.supplier_name, UDI, trade_item.gtin, brand_name, serial_number, batch_number, manufacturing_date, 
       expiry_date, udi_pi, unit_of_issue, unit_of_use, quantity_of_uou, unit_of_use_udi,
-      item_length_cm, item_height_cm, item_width_cm, item_weight_gram, item_volume_ccm, 
-      unit_of_dimension, product_description, storage_handling, single_use, restricted_no_of_use,
-      sterile, sterilize_before_use, sterilization_method, item_contains_latex, item_contains_dehp, 
-      item_mri_compatible, item_model_gmn, gmdn_gmdn_code, 
-      manufacturer_catalog_mpc, nhs_provider_provider_gln, nhs_eclass_code
+      product_description, item_length, item_height, item_width, unit_of_dimension, item_weight AS 'item_weight (g)', item_volume AS 'item_volume (cubic cm)', storage_handling, 
+      single_use, restricted_no_of_use, sterile, sterilize_before_use, sterilization_method, item_contains_latex, 
+      item_contains_dehp, item_mri_compatible, gmn, gmdn_code, manufacturer.manufacturer_name,
+      nhs_provider.provider_name, nhs_eclass_code, manufacturer_catalog.manufacturer_reference_no, authorized_rep.rep_name AS 'Authorized Rep Name', authorized_rep.contact_number, authorized_rep.email
+      
       
       FROM trade_item
-       LEFT JOIN supplier on supplier.supplier_gln = trade_item.supplier_supplier_gln
-      WHERE supplier_supplier_gln = %s
+      LEFT JOIN medical_device ON medical_device.gtin = trade_item.gtin
+      LEFT JOIN supplier ON supplier.supplier_gln = trade_item.supplier_gln
+      LEFT JOIN nhs_provider ON nhs_provider.provider_gln = trade_item.nhs_provider_gln
+      LEFT JOIN manufacturer_catalog ON manufacturer_catalog.manufacturer_reference_no = medical_device.manufacturer_reference_no
+      LEFT JOIN manufacturer ON manufacturer_catalog.manufacturer_manufacturer_gln = manufacturer.manufacturer_gln
+      LEFT JOIN authorized_rep ON manufacturer_catalog.authorized_rep_rep_id = authorized_rep.rep_id
+
+      WHERE supplier.supplier_gln = %s
     """
     
-    cursor.execute(select_trade_item_by_supplier_query, (supplier_supplier_gln,))
+    cursor.execute(select_trade_item_by_supplier_query, (supplier_gln,))
     trade_item = cursor.fetchall()
     
     # Fetch column names
@@ -238,7 +306,7 @@ def fetch_trade_item_by_supplier(db, supplier_supplier_gln):
 # In[66]:
 
 
-def fetch_trade_item_by_manufacturer(db, manufacturer_manufacturer_gln):
+def fetch_trade_item_by_manufacturer(db, manufacturer_gln):
     """Fetch trade item records from the trade item table based on the gln of manufacturer"""
     cursor = db.cursor()
     
@@ -248,21 +316,25 @@ def fetch_trade_item_by_manufacturer(db, manufacturer_manufacturer_gln):
     #Fetch trade items by manufacturer gln
     select_trade_item_by_manufacturer_query = """
       SELECT 
-      manufacturer.manufacturer_name, manufacturer.manufacturer_address, gtin, brand_name, 
-      serial_number, batch_number, manufacturing_date, expiry_date, udi_pi, unit_of_issue, unit_of_use,
-      quantity_of_uou, unit_of_use_udi, item_length_cm, item_height_cm, item_width_cm, item_weight_gram, item_volume_ccm, 
-      unit_of_dimension, product_description, storage_handling, single_use, restricted_no_of_use,
-      sterile, sterilize_before_use, sterilization_method, item_contains_latex, item_contains_dehp, 
-      item_mri_compatible, item_model_gmn, gmdn_gmdn_code, nhs_eclass_code
+      manufacturer.manufacturer_gln, manufacturer.manufacturer_name, UDI, trade_item.gtin, brand_name, serial_number, batch_number, manufacturing_date, 
+      expiry_date, udi_pi, unit_of_issue, unit_of_use, quantity_of_uou, unit_of_use_udi,
+      product_description, item_length, item_height, item_width, unit_of_dimension, item_weight AS 'item_weight (g)', item_volume AS 'item_volume (cubic cm)', storage_handling, 
+      single_use, restricted_no_of_use, sterile, sterilize_before_use, sterilization_method, item_contains_latex, 
+      item_contains_dehp, item_mri_compatible, gmn, gmdn_code, supplier.supplier_name,
+      nhs_provider.provider_name, nhs_eclass_code, manufacturer_catalog.manufacturer_reference_no, authorized_rep.rep_name AS 'Authorized Rep Name', authorized_rep.contact_number, authorized_rep.email
       
       FROM trade_item
-       LEFT JOIN manufacturer_catalog ON manufacturer_catalog.manufacturer_product_code = trade_item.manufacturer_catalog_mpc
-       LEFT JOIN manufacturer ON manufacturer.manufacturer_gln = manufacturer_catalog.manufacturer_manufacturer_gln
+      LEFT JOIN medical_device ON medical_device.gtin = trade_item.gtin
+      LEFT JOIN supplier ON supplier.supplier_gln = trade_item.supplier_gln
+      LEFT JOIN nhs_provider ON nhs_provider.provider_gln = trade_item.nhs_provider_gln
+      LEFT JOIN manufacturer_catalog ON manufacturer_catalog.manufacturer_reference_no = medical_device.manufacturer_reference_no
+      LEFT JOIN manufacturer ON manufacturer_catalog.manufacturer_manufacturer_gln = manufacturer.manufacturer_gln
+      LEFT JOIN authorized_rep ON manufacturer_catalog.authorized_rep_rep_id = authorized_rep.rep_id
       WHERE manufacturer.manufacturer_gln = %s
 
     """
     
-    cursor.execute(select_trade_item_by_manufacturer_query, (manufacturer_manufacturer_gln,))
+    cursor.execute(select_trade_item_by_manufacturer_query, (manufacturer_gln,))
     trade_item = cursor.fetchall()
     
     # Fetch column names
@@ -277,7 +349,7 @@ def fetch_trade_item_by_manufacturer(db, manufacturer_manufacturer_gln):
 # In[67]:
 
 
-def fetch_trade_item_by_provider(db, nhs_provider_provider_gln):
+def fetch_trade_item_by_provider(db, nhs_provider_gln):
     """Fetch trade item records from the trade item table based on the gln of the NHS provider the item was supplied to"""
     cursor = db.cursor()
     
@@ -287,20 +359,20 @@ def fetch_trade_item_by_provider(db, nhs_provider_provider_gln):
     #Fetch trade items by nhs provider gln
     select_trade_item_by_provider_query = """
      SELECT 
-      nhs_provider.provider_gln, nhs_provider.provider_name, gtin, brand_name, serial_number, batch_number, manufacturing_date, 
-      expiry_date, udi_pi, unit_of_issue, unit_of_use, quantity_of_uou, unit_of_use_udi,
-      item_length_cm, item_height_cm, item_width_cm, item_weight_gram, item_volume_ccm, 
-      unit_of_dimension, product_description, storage_handling, single_use, restricted_no_of_use,
-      sterile, sterilize_before_use, sterilization_method, item_contains_latex, item_contains_dehp, 
-      item_mri_compatible, item_model_gmn, gmdn_gmdn_code, 
-      manufacturer_catalog_mpc, nhs_eclass_code
+      trade_item.nhs_provider_gln, nhs_provider.provider_name, UDI, trade_item.gtin, brand_name, serial_number, batch_number, manufacturing_date, expiry_date, udi_pi, unit_of_issue, unit_of_use, quantity_of_uou, unit_of_use_udi, product_description, item_length, item_height, item_width, unit_of_dimension, item_weight AS 'item_weight (g)', item_volume AS 'item_volume (cubic cm)', storage_handling, single_use, restricted_no_of_use, sterile, sterilize_before_use, sterilization_method, item_contains_latex, 
+      item_contains_dehp, item_mri_compatible, gmn, gmdn_code, supplier.supplier_name, manufacturer.manufacturer_name, nhs_eclass_code, manufacturer_catalog.manufacturer_reference_no, authorized_rep.rep_name AS 'Authorized Rep Name', authorized_rep.contact_number, authorized_rep.email
       
-      FROM trade_item
-       LEFT JOIN nhs_provider ON nhs_provider.provider_gln = trade_item.nhs_provider_provider_gln
-      WHERE nhs_provider.provider_gln = %s
+     FROM trade_item
+      LEFT JOIN medical_device ON medical_device.gtin = trade_item.gtin
+      LEFT JOIN supplier ON supplier.supplier_gln = trade_item.supplier_gln
+      LEFT JOIN nhs_provider ON nhs_provider.provider_gln = trade_item.nhs_provider_gln
+      LEFT JOIN manufacturer_catalog ON manufacturer_catalog.manufacturer_reference_no = medical_device.manufacturer_reference_no
+      LEFT JOIN manufacturer ON manufacturer_catalog.manufacturer_manufacturer_gln = manufacturer.manufacturer_gln
+      LEFT JOIN authorized_rep ON manufacturer_catalog.authorized_rep_rep_id = authorized_rep.rep_id
+     WHERE nhs_provider.provider_gln = %s
     """
     
-    cursor.execute(select_trade_item_by_provider_query, (nhs_provider_provider_gln,))
+    cursor.execute(select_trade_item_by_provider_query, (nhs_provider_gln,))
     trade_item = cursor.fetchall()
     
     # Fetch column names
@@ -315,7 +387,7 @@ def fetch_trade_item_by_provider(db, nhs_provider_provider_gln):
 # In[68]:
 
 
-def fetch_trade_item_by_gmdn(db, gmdn_gmdn_code):
+def fetch_trade_item_by_gmdn(db, gmdn_code):
     """Fetch trade item records from the trade item table based on gmdn codes"""
     cursor = db.cursor()
     
@@ -325,21 +397,22 @@ def fetch_trade_item_by_gmdn(db, gmdn_gmdn_code):
     #Fetch trade items by gmdn code
     select_trade_item_by_gmdn_query = """
       SELECT 
-       gmdn_gmdn_code, gmdn.gmdn_term_name, gtin, brand_name, serial_number, batch_number, manufacturing_date, 
-       expiry_date, udi_pi, unit_of_issue, unit_of_use, quantity_of_uou, unit_of_use_udi,
-       item_length_cm, item_height_cm, item_width_cm, item_weight_gram, item_volume_ccm, 
-       unit_of_dimension, product_description, storage_handling, single_use, restricted_no_of_use,
-       sterile, sterilize_before_use, sterilization_method, item_contains_latex, item_contains_dehp, 
-       item_mri_compatible, item_model_gmn,
-       manufacturer_catalog_mpc,nhs_provider_provider_gln, nhs_eclass_code
+        medical_device.gmdn_code, gmdn.gmdn_term_name, UDI, trade_item.gtin, brand_name, serial_number, batch_number, manufacturing_date, expiry_date, udi_pi, unit_of_issue, unit_of_use, quantity_of_uou, unit_of_use_udi, product_description, item_length, item_height, item_width, unit_of_dimension, item_weight AS 'item_weight (g)', item_volume AS 'item_volume (cubic cm)', storage_handling, single_use, restricted_no_of_use, sterile, sterilize_before_use, sterilization_method, item_contains_latex, item_contains_dehp, item_mri_compatible, gmn, nhs_provider.provider_name, supplier.supplier_name, manufacturer.manufacturer_name, nhs_eclass_code, manufacturer_catalog.manufacturer_reference_no, authorized_rep.rep_name AS 'Authorized Rep Name', authorized_rep.contact_number, authorized_rep.email
+
       
       FROM trade_item
-       LEFT JOIN gmdn ON gmdn.gmdn_code = trade_item.gmdn_gmdn_code
-      WHERE gmdn_gmdn_code = %s
+        LEFT JOIN medical_device ON medical_device.gtin = trade_item.gtin
+        LEFT JOIN supplier ON supplier.supplier_gln = trade_item.supplier_gln
+        LEFT JOIN nhs_provider ON nhs_provider.provider_gln = trade_item.nhs_provider_gln
+        LEFT JOIN manufacturer_catalog ON manufacturer_catalog.manufacturer_reference_no = medical_device.manufacturer_reference_no
+        LEFT JOIN manufacturer ON manufacturer_catalog.manufacturer_manufacturer_gln = manufacturer.manufacturer_gln
+        LEFT JOIN authorized_rep ON manufacturer_catalog.authorized_rep_rep_id = authorized_rep.rep_id
+        LEFT JOIN gmdn ON gmdn.gmdn_code = medical_device.gmdn_code
+      WHERE gmdn.gmdn_code = %s
 
     """
     
-    cursor.execute(select_trade_item_by_gmdn_query, (gmdn_gmdn_code,))
+    cursor.execute(select_trade_item_by_gmdn_query, (gmdn_code,))
     trade_item = cursor.fetchall()
    # Fetch column names
     column_names = [col[0] for col in cursor.description]
@@ -363,17 +436,19 @@ def fetch_trade_item_by_eclass(db, nhs_eclass_code):
     #Fetch trade items by eclass code
     select_trade_item_by_eclass_query = """
        SELECT 
-        nhs_eclass_code, nhs_product_classification.description, gtin, brand_name, serial_number, batch_number, manufacturing_date, 
-        expiry_date, udi_pi, unit_of_issue, unit_of_use, quantity_of_uou, unit_of_use_udi,
-        item_length_cm, item_height_cm, item_width_cm, item_weight_gram, item_volume_ccm, 
-        unit_of_dimension, product_description, storage_handling, single_use, restricted_no_of_use,
-        sterile, sterilize_before_use, sterilization_method, item_contains_latex, item_contains_dehp, 
-        item_mri_compatible, item_model_gmn, gmdn_gmdn_code, 
-        manufacturer_catalog_mpc,supplier_supplier_gln, nhs_provider_provider_gln
-      
+        nhs_eclass_code, nhs_product_classification.description, UDI, trade_item.gtin, brand_name, serial_number, batch_number, manufacturing_date, expiry_date, udi_pi, unit_of_issue, unit_of_use, quantity_of_uou, unit_of_use_udi, product_description, item_length, item_height, item_width, unit_of_dimension, item_weight AS 'item_weight (g)', item_volume AS 'item_volume (cubic cm)', storage_handling, single_use, restricted_no_of_use, sterile, sterilize_before_use, sterilization_method, item_contains_latex, item_contains_dehp, item_mri_compatible, medical_device.gmn, nhs_provider.provider_name, supplier.supplier_name, manufacturer.manufacturer_name, gmdn_code, manufacturer_catalog.manufacturer_reference_no, authorized_rep.rep_name AS 'Authorized Rep Name', authorized_rep.contact_number, authorized_rep.email
+     
+
       FROM trade_item
-      LEFT JOIN nhs_product_classification ON trade_item.nhs_eclass_code = nhs_product_classification.eclass_code
-      
+        LEFT JOIN medical_device ON medical_device.gtin = trade_item.gtin
+        LEFT JOIN supplier ON supplier.supplier_gln = trade_item.supplier_gln
+        LEFT JOIN nhs_provider ON nhs_provider.provider_gln = trade_item.nhs_provider_gln
+        LEFT JOIN manufacturer_catalog ON manufacturer_catalog.manufacturer_reference_no = medical_device.manufacturer_reference_no
+        LEFT JOIN manufacturer ON manufacturer_catalog.manufacturer_manufacturer_gln = manufacturer.manufacturer_gln
+        LEFT JOIN authorized_rep ON manufacturer_catalog.authorized_rep_rep_id = authorized_rep.rep_id
+        LEFT JOIN item_model ON item_model.gmn = medical_device.gmn
+        LEFT JOIN risk_class ON risk_class.class_name = item_model.risk_class_class_name
+        LEFT JOIN nhs_product_classification ON nhs_product_classification.eclass_code = medical_device.nhs_eclass_code
       WHERE nhs_eclass_code = %s
 
     """
@@ -392,7 +467,7 @@ def fetch_trade_item_by_eclass(db, nhs_eclass_code):
 # In[70]:
 
 
-def fetch_trade_item_by_riskclass(db, risk_class_class_name):
+def fetch_trade_item_by_riskclass(db, risk_class):
     """Fetch trade item records from the trade item table based on the Risk class """
     cursor = db.cursor()
     
@@ -402,22 +477,28 @@ def fetch_trade_item_by_riskclass(db, risk_class_class_name):
     #Fetch trade items by risk class code
     select_trade_item_by_riskclass_query = """
       SELECT 
-        risk_class.class_name, gtin, brand_name, serial_number, batch_number, manufacturing_date, 
-        expiry_date, udi_pi, unit_of_issue, unit_of_use, quantity_of_uou, unit_of_use_udi,
-        item_length_cm, item_height_cm, item_width_cm, item_weight_gram, item_volume_ccm, 
-        unit_of_dimension, product_description, storage_handling, single_use, restricted_no_of_use,
-        sterile, sterilize_before_use, sterilization_method, item_contains_latex, item_contains_dehp, 
-        item_mri_compatible, item_model_gmn, gmdn_gmdn_code, 
-        manufacturer_catalog_mpc,supplier_supplier_gln, nhs_provider_provider_gln, nhs_eclass_code
-      
+        item_model.risk_class_class_name, UDI, trade_item.gtin, brand_name, serial_number, batch_number, manufacturing_date,
+        expiry_date, udi_pi, unit_of_issue, unit_of_use, quantity_of_uou, unit_of_use_udi, product_description, item_length,
+        item_height, item_width, unit_of_dimension, item_weight AS 'item_weight (g)', item_volume AS 'item_volume (cubic cm)', 
+        storage_handling, single_use, restricted_no_of_use, sterile, sterilize_before_use, sterilization_method, item_contains_latex,
+        item_contains_dehp, item_mri_compatible, medical_device.nhs_eclass_code, medical_device.gmn, nhs_provider.provider_name, supplier.supplier_name, manufacturer.manufacturer_name,
+        gmdn_code, manufacturer_catalog.manufacturer_reference_no, authorized_rep.rep_name AS 'Authorized Rep Name', authorized_rep.contact_number, authorized_rep.email
+     
+
       FROM trade_item
-        LEFT JOIN item_model ON item_model.GMN = trade_item.item_model_gmn
+        LEFT JOIN medical_device ON medical_device.gtin = trade_item.gtin
+        LEFT JOIN supplier ON supplier.supplier_gln = trade_item.supplier_gln
+        LEFT JOIN nhs_provider ON nhs_provider.provider_gln = trade_item.nhs_provider_gln
+        LEFT JOIN manufacturer_catalog ON manufacturer_catalog.manufacturer_reference_no = medical_device.manufacturer_reference_no
+        LEFT JOIN manufacturer ON manufacturer_catalog.manufacturer_manufacturer_gln = manufacturer.manufacturer_gln
+        LEFT JOIN authorized_rep ON manufacturer_catalog.authorized_rep_rep_id = authorized_rep.rep_id
+        LEFT JOIN item_model ON item_model.gmn = medical_device.gmn
         LEFT JOIN risk_class ON risk_class.class_name = item_model.risk_class_class_name
-      WHERE risk_class_class_name = %s
+      WHERE risk_class.class_name = %s
 
     """
     
-    cursor.execute(select_trade_item_by_riskclass_query, (risk_class_class_name,))
+    cursor.execute(select_trade_item_by_riskclass_query, (risk_class,))
     trade_item = cursor.fetchall()
     
     # Fetch column names
@@ -494,41 +575,86 @@ def main():
     #config['database'] = 'NHS_PIM'
     #db = create_connection()
     
-    menu = ["Home", "Search Products", "Suppliers", "Manufacturers", "NHS Provider", "GMDN", "NHS eClass", "Risk Class"]
+    menu = ["Home", "Search Trade Items", "Medical Devices", "Suppliers", "Manufacturers", "NHS Provider", "GMDN", "NHS eClass", "Risk Class"]
     options = st.sidebar.radio("Select option : ", menu)
     if options == "Home":
         st.image(logo, use_column_width=5)
         st.subheader("Welcome to the NHS' Product Information Management System")
-        st.write("Navigate from the sidebar to access database")
+        st.write("Navigate from the sidebar to access the PIM database")
         
-    elif options == "Search Products":
+    elif options == "Search Trade Items":
         search_trade_items(db)
         
+        
+    elif options == "Medical Devices":
+        medical_device_product = fetch_all_products(db)
+        if medical_device_product:
+            st.subheader("All Medical Device Products:")
+            medical_device_data, column_names = medical_device_product
+            
+            # Create DataFrame with fetched data and column names
+            df = pd.DataFrame(medical_device_data, columns = column_names)
+            st.dataframe(df)
+            
+            add_download_button(df, "Medical Device Products")
+        else:
+            st.write("No Medical Devices found")
+
+          
     elif options == "Suppliers":
-        supplier = fetch_all_suppliers(db)
+        #get search value from user
+        search_value = st.text_input("Filter by supplier name")
+        
+        #fetch with optional filtering
+        supplier = fetch_all_suppliers(db, search_value=search_value)
         if supplier:
             st.subheader("All Medical Tech Suppliers: ")
-            df = pd.DataFrame(supplier, columns=['supplier_gln', 'supplier_name', 'supplier_address', 'company_registration_no', 'customer_service_phone', 'customer_service_email'])
+            supplier_data, column_names = supplier
+            
+            df = pd.DataFrame(supplier_data, columns=column_names)
+            
+            if search_value:
+                df = df[df['supplier_name'].str.contains(search_value, case=False, na=False)]
             st.dataframe(df)
             add_download_button(df, "Medical Tech Suppliers")
         else:
             st.write("No Suppliers found")
         
     elif options == "Manufacturers":
-        manufacturer = fetch_all_manufacturers(db)
+        #get search value from user
+        search_value = st.text_input("Filter by manufacturer name")
+        
+        #fetch with optional filtering
+        manufacturer = fetch_all_manufacturers(db, search_value=search_value)
         if manufacturer:
             st.subheader("All Medical Tech Manufacturers: ")
-            df = pd.DataFrame(manufacturer, columns=['manufacturer_gln', 'manufacturer_name', 'manufacturer_address', 'company_registration_no', 'customer_service_phone', 'customer_service_email'])
+            manufacturer_data, column_names = manufacturer
+            
+            df = pd.DataFrame(manufacturer_data, columns=column_names)
+            
+            if search_value:
+                df = df[df['manufacturer_name'].str.contains(search_value, case=False, na=False)]
             st.dataframe(df)
             add_download_button(df, "Medical Tech Manufacturers")
         else:
             st.write("No Manufacturers found")
         
     elif options == "NHS Provider":
-        provider = fetch_all_providers(db)
+        #get search value from user
+        search_value = st.text_input("Filter by NHS Provider")
+        
+        #fetch with optional filtering
+
+        provider = fetch_all_providers(db, search_value=search_value)
         if provider:
             st.subheader("All NHS Providers: ")
-            df = pd.DataFrame(provider, columns=['provider_gln', 'provider_name', 'provider_address', 'provider_registration_no'])
+            provider_data, column_names = provider
+            
+            df = pd.DataFrame(provider_data, columns=column_names)
+            
+            if search_value:
+                df = df[df['provider_name'].str.contains(search_value, case=False, na=False)]
+
             st.dataframe(df)
             add_download_button(df, "NHS Providers")
         else:
