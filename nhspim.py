@@ -6,7 +6,7 @@ import requests
 import os
 import toml
 
-# Access MySQL credentials from secrets
+# Access MySQL credentials from streamlit secrets
 mysql_config = st.secrets["connections_mysql"]
 
 def create_connection():
