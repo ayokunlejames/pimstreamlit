@@ -21,6 +21,7 @@ def create_connection():
     )
     return db
 
+
 from PIL import Image
 
 # Load your logo
@@ -30,7 +31,7 @@ logo = Image.open('Green White Modern Minimal Plants Logo.png')
 # In[58]:
 
 
-def fetch_all_gmdns(db):
+def fetch_all_gmdns(db, search_value=None):
     """Fetch all records from the 'gmdn' table."""
     cursor = db.cursor()
     
@@ -38,11 +39,30 @@ def fetch_all_gmdns(db):
     cursor.execute("USE NHS_PIM")
     
     #Fetch all gmdn
-    select_gmdn_query = "select gmdn_code, gmdn_term_name, gmdn_term_definition FROM gmdn"
-    cursor.execute(select_gmdn_query)
+    select_gmdn_query = """
+       SELECT
+        gmdn_code, 
+        gmdn_term_name, 
+        gmdn_term_definition 
+     FROM gmdn
+     """
+     
+    if search_value:
+        search_value = "%" + search_value + "%"
+        select_gmdn_query += "WHERE gmdn_term_name LIKE %s"
+        
+    if search_value:
+         cursor.execute(select_gmdn_query, (search_value,)) 
+    else:
+         cursor.execute(select_gmdn_query)
+    
     gmdn = cursor.fetchall()
     
-    return gmdn
+    # Fetch column names
+    column_names = [col[0] for col in cursor.description]
+
+    cursor.close()
+    return gmdn, column_names
 
 
 # In[59]:
@@ -228,10 +248,15 @@ def fetch_all_products(db, search_value=None):
     select_product_query = """
        SELECT
          gtin, brand_name, unit_of_use, quantity_of_uou,
-         item_length, item_height, item_width, item_weight AS 'item_weight (g)', item_volume AS 'item_volume (cubic cm)', unit_of_dimension, product_description, storage_handling, single_use, restricted_no_of_use, sterile, sterilize_before_use, sterilization_method, item_contains_latex, item_contains_dehp, item_mri_compatible, gmn, gmdn_code, manufacturer_reference_no, nhs_eclass_code
+         item_length, item_height, item_width, item_weight AS 'item_weight (g)', item_volume AS 'item_volume (cubic cm)', unit_of_dimension, product_description, storage_handling, single_use, restricted_no_of_use, sterile, sterilize_before_use, sterilization_method, item_contains_latex, item_contains_dehp, item_mri_compatible, medical_device.gmdn_code, gmdn_term_name, manufacturer.manufacturer_name, manufacturer.manufacturer_address, authorized_rep.rep_name AS 'Authorized Rep Name', authorized_rep.contact_number, authorized_rep.email, nhs_eclass_code, description AS 'eClass description', risk_class_name AS 'Risk Class', medical_device.gmn, item_model.market_availability_date, item_model.lifecycle_status, item_model.last_status_update
       
        FROM medical_device
-
+       LEFT JOIN item_model ON item_model.gmn = medical_device.gmn
+       LEFT JOIN gmdn ON gmdn.gmdn_code = medical_device.gmdn_code
+       LEFT JOIN nhs_product_classification ON nhs_product_classification.eclass_code = medical_device.nhs_eclass_code
+       LEFT JOIN manufacturer_catalog ON manufacturer_catalog.manufacturer_reference_no = medical_device.manufacturer_reference_no
+       LEFT JOIN manufacturer ON manufacturer_catalog.manufacturer_manufacturer_gln = manufacturer.manufacturer_gln
+       LEFT JOIN authorized_rep ON manufacturer_catalog.authorized_rep_rep_id = authorized_rep.rep_id
     """
     
     if search_value:
@@ -263,7 +288,7 @@ def fetch_trade_item_by_gtin(db, gtin):
     #Fetch trade items by gtin
     select_trade_item_by_gtin_query= """
       SELECT 
-       UDI, trade_item.gtin, brand_name, serial_number, batch_number, manufacturing_date, expiry_date, udi_pi, unit_of_use, quantity_of_uou, unit_of_use_udi, product_description, item_length, item_height, item_width, unit_of_dimension, item_weight AS 'item_weight (g)', item_volume AS 'item_volume (cubic cm)', storage_handling, single_use, restricted_no_of_use, sterile, sterilize_before_use, sterilization_method, item_contains_latex, item_contains_dehp, item_mri_compatible, gmn, gmdn_code, manufacturer.manufacturer_name, supplier.supplier_name, nhs_provider.provider_name, nhs_eclass_code, manufacturer_catalog.manufacturer_reference_no, authorized_rep.rep_name AS 'Authorized Rep Name', authorized_rep.contact_number, authorized_rep.email
+       UDI, trade_item.gtin, brand_name, serial_number, batch_number, manufacturing_date, expiry_date, udi_pi, unit_of_use, quantity_of_uou, unit_of_use_udi, product_description, item_length, item_height, item_width, unit_of_dimension, item_weight AS 'item_weight (g)', item_volume AS 'item_volume (cubic cm)', storage_handling, single_use, restricted_no_of_use, sterile, sterilize_before_use, sterilization_method, item_contains_latex, item_contains_dehp, item_mri_compatible, medical_device.gmn, item_model.market_availability_date, item_model.lifecycle_status, item_model.last_status_update,   medical_device.gmdn_code, gmdn_term_name, manufacturer.manufacturer_name, manufacturer.manufacturer_address, nhs_eclass_code, description AS 'eClass description', risk_class_name AS 'Risk Class', supplier.supplier_name, nhs_provider.provider_name, manufacturer_catalog.manufacturer_reference_no, authorized_rep.rep_name AS 'Authorized Rep Name', authorized_rep.contact_number, authorized_rep.email
       
      FROM trade_item
       LEFT JOIN medical_device ON medical_device.gtin = trade_item.gtin
@@ -272,7 +297,10 @@ def fetch_trade_item_by_gtin(db, gtin):
       LEFT JOIN manufacturer_catalog ON manufacturer_catalog.manufacturer_reference_no = medical_device.manufacturer_reference_no
       LEFT JOIN manufacturer ON manufacturer_catalog.manufacturer_manufacturer_gln = manufacturer.manufacturer_gln
       LEFT JOIN authorized_rep ON manufacturer_catalog.authorized_rep_rep_id = authorized_rep.rep_id
-     
+      LEFT JOIN item_model ON item_model.gmn = medical_device.gmn
+      LEFT JOIN gmdn ON gmdn.gmdn_code = medical_device.gmdn_code
+      LEFT JOIN nhs_product_classification ON nhs_product_classification.eclass_code = medical_device.nhs_eclass_code
+
      WHERE trade_item.gtin = %s
     """
     
@@ -304,8 +332,7 @@ def fetch_trade_item_by_supplier(db, supplier_gln):
       expiry_date, udi_pi, unit_of_issue, unit_of_use, quantity_of_uou, unit_of_use_udi,
       product_description, item_length, item_height, item_width, unit_of_dimension, item_weight AS 'item_weight (g)', item_volume AS 'item_volume (cubic cm)', storage_handling, 
       single_use, restricted_no_of_use, sterile, sterilize_before_use, sterilization_method, item_contains_latex, 
-      item_contains_dehp, item_mri_compatible, gmn, gmdn_code, manufacturer.manufacturer_name,
-      nhs_provider.provider_name, nhs_eclass_code, manufacturer_catalog.manufacturer_reference_no, authorized_rep.rep_name AS 'Authorized Rep Name', authorized_rep.contact_number, authorized_rep.email
+      item_contains_dehp, item_mri_compatible, medical_device.gmn, item_model.market_availability_date, item_model.lifecycle_status, item_model.last_status_update, gmdn_code, risk_class_name AS 'Risk Class', manufacturer.manufacturer_name, nhs_provider.provider_name, nhs_eclass_code, manufacturer_catalog.manufacturer_reference_no, authorized_rep.rep_name AS 'Authorized Rep Name', authorized_rep.contact_number, authorized_rep.email
       
       
       FROM trade_item
@@ -315,6 +342,7 @@ def fetch_trade_item_by_supplier(db, supplier_gln):
       LEFT JOIN manufacturer_catalog ON manufacturer_catalog.manufacturer_reference_no = medical_device.manufacturer_reference_no
       LEFT JOIN manufacturer ON manufacturer_catalog.manufacturer_manufacturer_gln = manufacturer.manufacturer_gln
       LEFT JOIN authorized_rep ON manufacturer_catalog.authorized_rep_rep_id = authorized_rep.rep_id
+      LEFT JOIN item_model ON item_model.gmn = medical_device.gmn
 
       WHERE supplier.supplier_gln = %s
     """
@@ -348,8 +376,7 @@ def fetch_trade_item_by_manufacturer(db, manufacturer_gln):
       expiry_date, udi_pi, unit_of_issue, unit_of_use, quantity_of_uou, unit_of_use_udi,
       product_description, item_length, item_height, item_width, unit_of_dimension, item_weight AS 'item_weight (g)', item_volume AS 'item_volume (cubic cm)', storage_handling, 
       single_use, restricted_no_of_use, sterile, sterilize_before_use, sterilization_method, item_contains_latex, 
-      item_contains_dehp, item_mri_compatible, gmn, gmdn_code, supplier.supplier_name,
-      nhs_provider.provider_name, nhs_eclass_code, manufacturer_catalog.manufacturer_reference_no, authorized_rep.rep_name AS 'Authorized Rep Name', authorized_rep.contact_number, authorized_rep.email
+      item_contains_dehp, item_mri_compatible, medical_device.gmn, item_model.market_availability_date, item_model.lifecycle_status, item_model.last_status_update, gmdn_code, risk_class_name AS 'Risk Class', supplier.supplier_name, nhs_provider.provider_name, nhs_eclass_code, manufacturer_catalog.manufacturer_reference_no, authorized_rep.rep_name AS 'Authorized Rep Name', authorized_rep.contact_number, authorized_rep.email
       
       FROM trade_item
       LEFT JOIN medical_device ON medical_device.gtin = trade_item.gtin
@@ -358,6 +385,7 @@ def fetch_trade_item_by_manufacturer(db, manufacturer_gln):
       LEFT JOIN manufacturer_catalog ON manufacturer_catalog.manufacturer_reference_no = medical_device.manufacturer_reference_no
       LEFT JOIN manufacturer ON manufacturer_catalog.manufacturer_manufacturer_gln = manufacturer.manufacturer_gln
       LEFT JOIN authorized_rep ON manufacturer_catalog.authorized_rep_rep_id = authorized_rep.rep_id
+      LEFT JOIN item_model ON item_model.gmn = medical_device.gmn
       WHERE manufacturer.manufacturer_gln = %s
 
     """
@@ -388,7 +416,7 @@ def fetch_trade_item_by_provider(db, nhs_provider_gln):
     select_trade_item_by_provider_query = """
      SELECT 
       trade_item.nhs_provider_gln, nhs_provider.provider_name, UDI, trade_item.gtin, brand_name, serial_number, batch_number, manufacturing_date, expiry_date, udi_pi, unit_of_issue, unit_of_use, quantity_of_uou, unit_of_use_udi, product_description, item_length, item_height, item_width, unit_of_dimension, item_weight AS 'item_weight (g)', item_volume AS 'item_volume (cubic cm)', storage_handling, single_use, restricted_no_of_use, sterile, sterilize_before_use, sterilization_method, item_contains_latex, 
-      item_contains_dehp, item_mri_compatible, gmn, gmdn_code, supplier.supplier_name, manufacturer.manufacturer_name, nhs_eclass_code, manufacturer_catalog.manufacturer_reference_no, authorized_rep.rep_name AS 'Authorized Rep Name', authorized_rep.contact_number, authorized_rep.email
+      item_contains_dehp, item_mri_compatible, medical_device.gmn, item_model.market_availability_date, item_model.lifecycle_status, item_model.last_status_update, gmdn_code, risk_class_name AS 'Risk Class',  supplier.supplier_name, manufacturer.manufacturer_name, nhs_eclass_code, manufacturer_catalog.manufacturer_reference_no, authorized_rep.rep_name AS 'Authorized Rep Name', authorized_rep.contact_number, authorized_rep.email
       
      FROM trade_item
       LEFT JOIN medical_device ON medical_device.gtin = trade_item.gtin
@@ -397,6 +425,7 @@ def fetch_trade_item_by_provider(db, nhs_provider_gln):
       LEFT JOIN manufacturer_catalog ON manufacturer_catalog.manufacturer_reference_no = medical_device.manufacturer_reference_no
       LEFT JOIN manufacturer ON manufacturer_catalog.manufacturer_manufacturer_gln = manufacturer.manufacturer_gln
       LEFT JOIN authorized_rep ON manufacturer_catalog.authorized_rep_rep_id = authorized_rep.rep_id
+      LEFT JOIN item_model ON item_model.gmn = medical_device.gmn
      WHERE nhs_provider.provider_gln = %s
     """
     
@@ -425,7 +454,7 @@ def fetch_trade_item_by_gmdn(db, gmdn_code):
     #Fetch trade items by gmdn code
     select_trade_item_by_gmdn_query = """
       SELECT 
-        medical_device.gmdn_code, gmdn.gmdn_term_name, UDI, trade_item.gtin, brand_name, serial_number, batch_number, manufacturing_date, expiry_date, udi_pi, unit_of_issue, unit_of_use, quantity_of_uou, unit_of_use_udi, product_description, item_length, item_height, item_width, unit_of_dimension, item_weight AS 'item_weight (g)', item_volume AS 'item_volume (cubic cm)', storage_handling, single_use, restricted_no_of_use, sterile, sterilize_before_use, sterilization_method, item_contains_latex, item_contains_dehp, item_mri_compatible, gmn, nhs_provider.provider_name, supplier.supplier_name, manufacturer.manufacturer_name, nhs_eclass_code, manufacturer_catalog.manufacturer_reference_no, authorized_rep.rep_name AS 'Authorized Rep Name', authorized_rep.contact_number, authorized_rep.email
+        medical_device.gmdn_code, gmdn.gmdn_term_name, UDI, trade_item.gtin, brand_name, serial_number, batch_number, manufacturing_date, expiry_date, udi_pi, unit_of_issue, unit_of_use, quantity_of_uou, unit_of_use_udi, product_description, item_length, item_height, item_width, unit_of_dimension, item_weight AS 'item_weight (g)', item_volume AS 'item_volume (cubic cm)', storage_handling, single_use, restricted_no_of_use, sterile, sterilize_before_use, sterilization_method, item_contains_latex, item_contains_dehp, item_mri_compatible, medical_device.gmn, item_model.market_availability_date, item_model.lifecycle_status, item_model.last_status_update, risk_class_name AS 'Risk Class', nhs_provider.provider_name, supplier.supplier_name, manufacturer.manufacturer_name, nhs_eclass_code, manufacturer_catalog.manufacturer_reference_no, authorized_rep.rep_name AS 'Authorized Rep Name', authorized_rep.contact_number, authorized_rep.email
 
       
       FROM trade_item
@@ -435,6 +464,7 @@ def fetch_trade_item_by_gmdn(db, gmdn_code):
         LEFT JOIN manufacturer_catalog ON manufacturer_catalog.manufacturer_reference_no = medical_device.manufacturer_reference_no
         LEFT JOIN manufacturer ON manufacturer_catalog.manufacturer_manufacturer_gln = manufacturer.manufacturer_gln
         LEFT JOIN authorized_rep ON manufacturer_catalog.authorized_rep_rep_id = authorized_rep.rep_id
+        LEFT JOIN item_model ON item_model.gmn = medical_device.gmn
         LEFT JOIN gmdn ON gmdn.gmdn_code = medical_device.gmdn_code
       WHERE gmdn.gmdn_code = %s
 
@@ -464,7 +494,7 @@ def fetch_trade_item_by_eclass(db, nhs_eclass_code):
     #Fetch trade items by eclass code
     select_trade_item_by_eclass_query = """
        SELECT 
-        nhs_eclass_code, nhs_product_classification.description, UDI, trade_item.gtin, brand_name, serial_number, batch_number, manufacturing_date, expiry_date, udi_pi, unit_of_issue, unit_of_use, quantity_of_uou, unit_of_use_udi, product_description, item_length, item_height, item_width, unit_of_dimension, item_weight AS 'item_weight (g)', item_volume AS 'item_volume (cubic cm)', storage_handling, single_use, restricted_no_of_use, sterile, sterilize_before_use, sterilization_method, item_contains_latex, item_contains_dehp, item_mri_compatible, medical_device.gmn, nhs_provider.provider_name, supplier.supplier_name, manufacturer.manufacturer_name, gmdn_code, manufacturer_catalog.manufacturer_reference_no, authorized_rep.rep_name AS 'Authorized Rep Name', authorized_rep.contact_number, authorized_rep.email
+        nhs_eclass_code, nhs_product_classification.description, UDI, trade_item.gtin, brand_name, serial_number, batch_number, manufacturing_date, expiry_date, udi_pi, unit_of_issue, unit_of_use, quantity_of_uou, unit_of_use_udi, product_description, item_length, item_height, item_width, unit_of_dimension, item_weight AS 'item_weight (g)', item_volume AS 'item_volume (cubic cm)', storage_handling, single_use, restricted_no_of_use, sterile, sterilize_before_use, sterilization_method, item_contains_latex, item_contains_dehp, item_mri_compatible, medical_device.gmn, item_model.market_availability_date, item_model.lifecycle_status, item_model.last_status_update, risk_class_name AS 'Risk Class', nhs_provider.provider_name, supplier.supplier_name, manufacturer.manufacturer_name, gmdn_code, manufacturer_catalog.manufacturer_reference_no, authorized_rep.rep_name AS 'Authorized Rep Name', authorized_rep.contact_number, authorized_rep.email
      
 
       FROM trade_item
@@ -475,7 +505,6 @@ def fetch_trade_item_by_eclass(db, nhs_eclass_code):
         LEFT JOIN manufacturer ON manufacturer_catalog.manufacturer_manufacturer_gln = manufacturer.manufacturer_gln
         LEFT JOIN authorized_rep ON manufacturer_catalog.authorized_rep_rep_id = authorized_rep.rep_id
         LEFT JOIN item_model ON item_model.gmn = medical_device.gmn
-        LEFT JOIN risk_class ON risk_class.class_name = item_model.risk_class_class_name
         LEFT JOIN nhs_product_classification ON nhs_product_classification.eclass_code = medical_device.nhs_eclass_code
       WHERE nhs_eclass_code = %s
 
@@ -505,11 +534,8 @@ def fetch_trade_item_by_riskclass(db, risk_class):
     #Fetch trade items by risk class code
     select_trade_item_by_riskclass_query = """
       SELECT 
-        item_model.risk_class_class_name, UDI, trade_item.gtin, brand_name, serial_number, batch_number, manufacturing_date,
-        expiry_date, udi_pi, unit_of_issue, unit_of_use, quantity_of_uou, unit_of_use_udi, product_description, item_length,
-        item_height, item_width, unit_of_dimension, item_weight AS 'item_weight (g)', item_volume AS 'item_volume (cubic cm)', 
-        storage_handling, single_use, restricted_no_of_use, sterile, sterilize_before_use, sterilization_method, item_contains_latex,
-        item_contains_dehp, item_mri_compatible, medical_device.nhs_eclass_code, medical_device.gmn, nhs_provider.provider_name, supplier.supplier_name, manufacturer.manufacturer_name,
+        medical_device.risk_class_name AS 'Risk Class', UDI, trade_item.gtin, brand_name, serial_number, batch_number, manufacturing_date, expiry_date, udi_pi, unit_of_issue, unit_of_use, quantity_of_uou, unit_of_use_udi, product_description, item_length, item_height, item_width, unit_of_dimension, item_weight AS 'item_weight (g)', item_volume AS 'item_volume (cubic cm)', 
+        storage_handling, single_use, restricted_no_of_use, sterile, sterilize_before_use, sterilization_method, item_contains_latex, item_contains_dehp, item_mri_compatible, medical_device.nhs_eclass_code, medical_device.gmn, item_model.market_availability_date, item_model.lifecycle_status, item_model.last_status_update, nhs_provider.provider_name, supplier.supplier_name, manufacturer.manufacturer_name,
         gmdn_code, manufacturer_catalog.manufacturer_reference_no, authorized_rep.rep_name AS 'Authorized Rep Name', authorized_rep.contact_number, authorized_rep.email
      
 
@@ -521,8 +547,7 @@ def fetch_trade_item_by_riskclass(db, risk_class):
         LEFT JOIN manufacturer ON manufacturer_catalog.manufacturer_manufacturer_gln = manufacturer.manufacturer_gln
         LEFT JOIN authorized_rep ON manufacturer_catalog.authorized_rep_rep_id = authorized_rep.rep_id
         LEFT JOIN item_model ON item_model.gmn = medical_device.gmn
-        LEFT JOIN risk_class ON risk_class.class_name = item_model.risk_class_class_name
-      WHERE risk_class.class_name = %s
+      WHERE medical_device.risk_class_name = %s
 
     """
     
@@ -696,10 +721,21 @@ def main():
             st.write("No NHS Provider found")
         
     elif options == "GMDN":
-        gmdn = fetch_all_gmdns(db)
+        #get search value from user
+        search_value = st.text_input("Filter by GMDN term name")
+        
+        #fetch optional filtering
+        gmdn = fetch_all_gmdns(db, search_value=search_value)
         if gmdn:
             st.subheader("All GMDNs: ")
-            df = pd.DataFrame(gmdn, columns=['gmdn_code', 'gmdn_term_name', 'gmdn_term_definition'])
+            
+            gmdn_data, column_names = gmdn
+            
+            df = pd.DataFrame(gmdn_data, columns=column_names)
+            
+            if search_value:
+                df = df[df['gmdn_term_name'].str.contains(search_value, case=False, na=False)]
+
             st.dataframe(df) 
             add_download_button(df, "GMDNs")
         else:
