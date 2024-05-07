@@ -645,10 +645,10 @@ def main():
         with st.expander("**Access Guide**"):
             
              st.markdown("""
-        1. Search for medical device trade items from the 'Search Trade Items' tab
-        2. Select Search option from dropdown and input search value
-        3. Lookup medical device information from 'Medical Devices' page
-        4. Lookup all other pages for corresponding information
+             1. Search for medical device trade items from the 'Search Trade Items' tab
+             2. Select Search option from dropdown and input search value
+             3. Lookup medical device information from 'Medical Devices' page
+             4. Lookup all other pages for corresponding information
         """)
 
     elif options == "Search Trade Items":
