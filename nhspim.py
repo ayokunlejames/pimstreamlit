@@ -640,15 +640,19 @@ def main():
     if options == "Home":
         st.image(logo, use_column_width=5)
         st.subheader("Welcome to the NHS' MedTech Product Information Management System")
-        st.write("Navigate from the sidebar to access the database")
         
         with st.expander("**Access Guide**"):
             
              st.markdown("""
+             Navigate from the sidebar to access the database
              1. Search for medical device trade items from the 'Search Trade Items' tab
              2. Select Search option from dropdown and input search value
              3. Lookup medical device information from 'Medical Devices' page
              4. Lookup all other pages for corresponding information
+
+             You can view a comprehensive data dictionary in [Glossary of terms](https://www.gs1uk.org/sites/default/files/GS1_UK_Healthcare_Terms_2024.pdf)
+
+             Kindly leave a [review](https://forms.gle/xfu1ebp2Kyeds4Ai9) of the system here.
         """)
 
     elif options == "Search Trade Items":
