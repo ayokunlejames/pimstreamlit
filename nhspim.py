@@ -650,9 +650,9 @@ def main():
              3. Lookup medical device information from 'Medical Devices' page
              4. Lookup all other pages for corresponding information
 
-             You can view a comprehensive data dictionary in [Glossary of terms](https://www.gs1uk.org/sites/default/files/GS1_UK_Healthcare_Terms_2024.pdf)
+             You can view a comprehensive data dictionary in [Glossary of terms](https://docs.google.com/spreadsheets/d/1m1Ty2fqvT6VlAo9CiAVMFjsHZaOecX8-ghPnITdVDQw/edit?usp=sharing)
 
-             Kindly leave a [review](https://forms.gle/xfu1ebp2Kyeds4Ai9) of the system here.
+             Kindly leave a review of the system [here](https://forms.gle/xfu1ebp2Kyeds4Ai9).
         """)
 
     elif options == "Search Trade Items":
