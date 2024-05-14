@@ -640,6 +640,20 @@ def main():
     if options == "Home":
         st.image(logo, use_column_width=5)
         st.subheader("Welcome to the NHS' MedTech Product Information Management System")
+
+        with st.expander("**About the NHS PIM**"):
+            st.markdown("""
+            The NHS PIM system is designed to revolutionize the way product information is managed within the National Health Service (NHS) procurement ecosystem. With the aim of improving data sharing, enhancing supply chain efficiency, and ensuring patient safety, our system serves as a centralized platform for storing, accessing, and managing vital product information.
+            
+            The purpose of the NHS PIM system is to address the challenges faced by the NHS in managing product data, such as outdated information, inconsistent records, and manual data entry processes. By providing a comprehensive database of standardized and up-to-date product information, our system empowers healthcare providers, procurement teams, and other stakeholders to make informed decisions and streamline their operations.
+            
+            Users of the system can expect to access a wide range of product data, including details on Medical devices, Suppliers, Manufacturers, GMDNs, Risk Classes, NHS Provider trusts, the NHS product classification system, and Trade Items supplied to the NHS across all its providers. From specifications and usage instructions to regulatory approvals and safety information, the PIM system provides a wealth of valuable information at your fingertips.
+            
+            Whether you're a healthcare professional searching for specific product details, a procurement officer managing inventory, or a patient seeking information on medical devices, the NHS PIM system is here to support you. 
+            
+            Explore our user-friendly interface and unlock the potential of centralized product information management for the NHS!
+            
+            """)
         
         with st.expander("**Access Guide**"):
             
