@@ -273,6 +273,44 @@ def fetch_all_products(db, search_value=None):
     return medical_device_product, column_names
 
 
+def fetch_trade_item_by_udi(db, udi):
+    """Fetch a trade item record from the trade item table based on the UDI of the trade item device"""
+    cursor = db.cursor()
+    
+    #select database
+    cursor.execute("USE NHS_PIM")
+    
+    #Fetch trade items by udi
+    
+    select_trade_item_by_udi_query= """
+      SELECT 
+       UDI, trade_item.gtin, brand_name, serial_number, batch_number, manufacturing_date, expiry_date, udi_pi, unit_of_use, quantity_of_uou, unit_of_use_udi, product_description, item_length, item_height, item_width, unit_of_dimension, item_weight AS 'item_weight (g)', item_volume AS 'item_volume (cubic cm)', storage_handling, single_use, restricted_no_of_use, sterile, sterilize_before_use, sterilization_method, item_contains_latex, item_contains_dehp, item_mri_compatible, medical_device.gmn, item_model.market_availability_date, item_model.lifecycle_status, item_model.last_status_update,   medical_device.gmdn_code, gmdn_term_name, manufacturer.manufacturer_name, manufacturer.manufacturer_address, nhs_eclass_code, description AS 'eClass description', risk_class_name AS 'Risk Class', supplier.supplier_name, nhs_provider.provider_name, manufacturer_catalog.manufacturer_reference_no, authorized_rep.rep_name AS 'Authorized Rep Name', authorized_rep.contact_number, authorized_rep.email
+      
+     FROM trade_item
+      LEFT JOIN medical_device ON medical_device.gtin = trade_item.gtin
+      LEFT JOIN supplier ON supplier.supplier_gln = trade_item.supplier_gln
+      LEFT JOIN nhs_provider ON nhs_provider.provider_gln = trade_item.nhs_provider_gln
+      LEFT JOIN manufacturer_catalog ON manufacturer_catalog.manufacturer_reference_no = medical_device.manufacturer_reference_no
+      LEFT JOIN manufacturer ON manufacturer_catalog.manufacturer_manufacturer_gln = manufacturer.manufacturer_gln
+      LEFT JOIN authorized_rep ON manufacturer_catalog.authorized_rep_rep_id = authorized_rep.rep_id
+      LEFT JOIN item_model ON item_model.gmn = medical_device.gmn
+      LEFT JOIN gmdn ON gmdn.gmdn_code = medical_device.gmdn_code
+      LEFT JOIN nhs_product_classification ON nhs_product_classification.eclass_code = medical_device.nhs_eclass_code
+
+     WHERE trade_item.udi = %s
+    """
+    
+    cursor.execute(select_trade_item_by_udi_query, (udi,))
+    trade_item = cursor.fetchall()
+   # Fetch column names
+    column_names = [col[0] for col in cursor.description]
+    
+    # Close cursor
+    cursor.close()
+    
+    return trade_item, column_names
+
+
 def fetch_trade_item_by_gtin(db, gtin):
     """Fetch a trade item record from the trade item table based on the UDI-DI of the item trade item device"""
     cursor = db.cursor()
@@ -587,11 +625,13 @@ def add_download_button(df, title):
 
 
 def search_trade_items(db):
-    search_option = st.selectbox("Select search option from dropdown", ["GTIN", "Supplier GLN", "Manufacturer GLN", "Provider GLN", "GMDN Code", "NHS eClass Code", "Risk Class"], key="search_option")
+    search_option = st.selectbox("Select search option from dropdown", ["UDI", "GTIN", "Supplier GLN", "Manufacturer GLN", "Provider GLN", "GMDN Code", "NHS eClass Code", "Risk Class"], key="search_option")
     search_value = st.text_input("Enter search value",key="search_value")
     
     if st.button("Search"):
-        if search_option == "GTIN":
+        if search_option == "UDI":
+            trade_item = fetch_trade_item_by_udi(db, search_value)
+        elif search_option == "GTIN":
             trade_item = fetch_trade_item_by_gtin(db, search_value)
         elif search_option == "Supplier GLN":
             trade_item = fetch_trade_item_by_supplier(db, search_value)
@@ -637,6 +677,8 @@ def main():
     
     menu = ["Home", "Search Trade Items", "Medical Devices", "Suppliers", "Manufacturers", "NHS Provider", "GMDN", "NHS eClass", "Risk Class"]
     options = st.sidebar.radio("Select option : ", menu)
+
+    
     if options == "Home":
         st.image(logo, use_column_width=5)
         st.subheader("Welcome to the NHS' MedTech Product Information Management System")
@@ -669,6 +711,7 @@ def main():
              Kindly leave a review of the system [here](https://forms.gle/xfu1ebp2Kyeds4Ai9).
         """)
 
+    
     elif options == "Search Trade Items":
         search_trade_items(db)
         
