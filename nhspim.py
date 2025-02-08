@@ -680,7 +680,7 @@ def main():
 
     
     if options == "Home":
-        st.image(logo, use_column_width=5)
+        st.image(logo, use_container_width=5)
         st.subheader("Welcome to the NHS' MedTech Product Information Management System")
 
         with st.expander("**About the NHS PIM**"):
